@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stickman Shooter</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #eee; }
+        canvas { display: block; }
+        .controls {
+            position: fixed;
+            width: 100%;
+            height: 100px;
+            bottom: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .control-btn {
+            width: 20%;
+            height: 100%;
+            font-size: 30px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        #shootBtn {
+            width: 20%;
+        }
+        #retryBtn {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            padding: 15px;
+            background: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div class="controls">
+        <button id="leftBtn" class="control-btn">◀</button>
+        <button id="aimUpBtn" class="control-btn">🔼</button>
+        <button id="shootBtn" class="control-btn">🐥</button>
+        <button id="aimDownBtn" class="control-btn">🔽</button>
+        <button id="rightBtn" class="control-btn">▶</button>
+    </div>
+    <button id="retryBtn">Nochmal probieren</button>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight - 100;
+
+        let shotCount = 0;
+        class Stickman {
+            constructor() {
+                this.x = 100;
+                this.y = canvas.height - 100;
+                this.size = 50;
+                this.speed = 10;
+                this.aimAngle = 0;
+            }
+            move(direction) {
+                if (direction === "left" && this.x > 0) this.x -= this.speed;
+                if (direction === "right" && this.x < canvas.width - this.size) this.x += this.speed;
+            }
+            aim(direction) {
+                if (direction === "up" && this.aimAngle > -180) this.aimAngle -= 5;
+                if (direction === "down" && this.aimAngle < 180) this.aimAngle += 5;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - 30, 15, 0, Math.PI * 2);
+                ctx.moveTo(this.x, this.y - 15);
+                ctx.lineTo(this.x, this.y + 20);
+                ctx.lineTo(this.x - 20, this.y + 50);
+                ctx.moveTo(this.x, this.y + 20);
+                ctx.lineTo(this.x + 20, this.y + 50);
+                
+                // Draw gun with angle
+                ctx.save();
+                ctx.translate(this.x + 10, this.y);
+                ctx.rotate(this.aimAngle * Math.PI / 180);
+                ctx.fillRect(0, -5, 50, 10);
+                ctx.restore();
+                ctx.stroke();
+            }
+        }
+
+        class Bullet {
+            constructor(x, y, angle) {
+                this.x = x;
+                this.y = y;
+                this.angle = angle;
+                this.speedX = 20 * Math.cos(this.angle * Math.PI / 180);
+                this.speedY = 20 * Math.sin(this.angle * Math.PI / 180);
+                this.gravity = 0.2;
+                this.friction = 0.99;
+            }
+            update() {
+                this.speedY += this.gravity;
+                this.speedX *= this.friction;
+                this.speedY *= this.friction;
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                if (this.x <= 0 || this.x >= canvas.width) {
+                    this.speedX *= -1;
+                }
+                if (this.y <= 0) {
+                    this.speedY *= -1;
+                }
+                if (this.y >= canvas.height) {
+                    this.speedY *= -0.8;
+                    this.y = canvas.height;
+                }
+            }
+            draw() {
+                ctx.font = "20px Arial";
+                ctx.fillText("🐥", this.x, this.y);
+            }
+        }
+
+        class Target {
+            constructor() {
+                this.x = Math.random() * (canvas.width - 50) + 50;
+                this.y = Math.random() * (canvas.height / 2);
+                this.size = 30;
+            }
+            draw() {
+                ctx.fillStyle = "red";
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "black";
+                ctx.stroke();
+            }
+        }
+
+        const stickman = new Stickman();
+        const bullets = [];
+        let targets = [new Target(), new Target(), new Target()];
+
+        function checkCollisions() {
+            bullets.forEach((bullet, bulletIndex) => {
+                targets.forEach((target, targetIndex) => {
+                    const dx = bullet.x - target.x;
+                    const dy = bullet.y - target.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < target.size) {
+                        bullets.splice(bulletIndex, 1);
+                        targets.splice(targetIndex, 1);
+                    }
+                });
+            });
+            if (targets.length === 0) {
+                document.getElementById("retryBtn").style.display = "block";
+                document.getElementById("retryBtn").innerText = `Nochmal probieren? Schüsse: ${shotCount}`;
+            }
+        }
+
+        document.getElementById("shootBtn").addEventListener("touchstart", () => {
+            bullets.push(new Bullet(stickman.x + 50, stickman.y - 5, stickman.aimAngle));
+            shotCount++;
+        });
+        document.getElementById("leftBtn").addEventListener("touchstart", () => stickman.move("left"));
+        document.getElementById("rightBtn").addEventListener("touchstart", () => stickman.move("right"));
+        document.getElementById("aimUpBtn").addEventListener("touchstart", () => stickman.aim("up"));
+        document.getElementById("aimDownBtn").addEventListener("touchstart", () => stickman.aim("down"));
+        
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            stickman.draw();
+            bullets.forEach(bullet => { bullet.update(); bullet.draw(); });
+            targets.forEach(target => target.draw());
+            checkCollisions();
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>
